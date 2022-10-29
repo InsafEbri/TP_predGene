@@ -1,4 +1,5 @@
 import argparse
+from msilib import sequence
 import sys
 import os
 import csv
@@ -60,31 +61,65 @@ def get_arguments():
 
 
 def read_fasta(fasta_file):
-    """Extract the complete genome sequence as a single string
-    """
-    pass
+    """Extract the complete genome sequence as a single string"""
+    with open(fasta_file, "r") as  f:
+        sequence = ""
+        for line in f:
+            if line[0] == '>':
+                continue
+            else :
+                sequence += line.strip().upper()
+        return sequence
+    
 
 def find_start(start_regex, sequence, start, stop):
-    """Find the start codon
-    """
-    pass
+    """Find the start codon"""
+    
+    if start_regex.search(sequence, start, stop):
+        return start_regex.search(sequence, start, stop).start(0)
 
 
 def find_stop(stop_regex, sequence, start):
-    """Find the stop codon
-    """
-    pass
+    """Find the stop codon"""
+    for i in stop_regex.finditer(sequence, start) :
+        if (i.start(0) - start)%3 == 0: 
+            return i.start(0)
 
 def has_shine_dalgarno(shine_regex, sequence, start, max_shine_dalgarno_distance):
-    """Find a shine dalgarno motif before the start codon
-    """
-    pass
+    """Find a shine dalgarno motif before the start codon"""
+    newstart = start - max_shine_dalgarno_distance
+    stop = start - 6
+
+    match = shine_regex.search(sequence, newstart, stop)
+    for i in match:
+        if match.end(0) < stop:
+            return True
+    return False
 
 def predict_genes(sequence, start_regex, stop_regex, shine_regex, 
                   min_gene_len, max_shine_dalgarno_distance, min_gap):
-    """Predict most probable genes
-    """
-    pass
+    """Predict most probable genes"""
+    
+    pos = 0
+    genes = []
+    while len(sequence) - pos >= min_gap:
+        pos = find_start(start_regex, sequence, pos, len(sequence))
+        if pos is not None:
+            stop = find_stop(stop_regex, sequence, pos)
+            if stop is not None:
+                if len(sequence[pos:stop+2])>=min_gene_len:
+                    if has_shine_dalgarno(shine_regex, sequence, pos, max_shine_dalgarno_distance):
+                        genes.append([pos+1, stop+3])
+                        pos = stop + 2 + min_gap
+                    else :
+                        pos += 1
+                else :
+                    pos += 1
+            else :
+                pos += 1
+        else :
+            break
+    return genes
 
 
 def write_genes_pos(predicted_genes_file, probable_genes):
